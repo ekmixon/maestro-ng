@@ -61,8 +61,7 @@ class TCPPortPinger(RetryingLifecycleHelper):
         self.port = int(port)
 
     def __repr__(self):
-        return 'PortPing(tcp://{}:{}, {} attempts)'.format(
-            self.host, self.port, self.attempts)
+        return f'PortPing(tcp://{self.host}:{self.port}, {self.attempts} attempts)'
 
     def _test(self, container=None):
         try:
@@ -76,13 +75,16 @@ class TCPPortPinger(RetryingLifecycleHelper):
     def from_config(container, config):
         if config['port'] not in container.ports:
             raise exceptions.InvalidLifecycleCheckConfigurationException(
-                'Port {} is not defined by {}!'.format(
-                    config['port'], container.name))
+                f"Port {config['port']} is not defined by {container.name}!"
+            )
+
 
         parts = container.ports[config['port']]['external'][1].split('/')
         if parts[1] == 'udp':
             raise exceptions.InvalidLifecycleCheckConfigurationException(
-                'Port {} is not TCP!'.format(config['port']))
+                f"Port {config['port']} is not TCP!"
+            )
+
 
         return TCPPortPinger(container.ship.ip, int(parts[0]),
                              attempts=config.get('max_wait'))
@@ -101,13 +103,12 @@ class ScriptExecutor(RetryingLifecycleHelper):
         self.envfrom = envfrom
 
     def __repr__(self):
-        return 'ScriptExec({}, {} attempts)'.format(self.command,
-                                                    self.attempts)
+        return f'ScriptExec({self.command}, {self.attempts} attempts)'
 
     def _create_env(self):
-        env = dict((k, v) for k, v in os.environ.items())
-        env.update(self.container_env)
-        return dict((str(k), str(v)) for k, v in env.items())
+        env = dict(os.environ.items())
+        env |= self.container_env
+        return {str(k): str(v) for k, v in env.items()}
 
     def _test(self, container=None):
         env = self._create_env()
@@ -118,9 +119,7 @@ class ScriptExecutor(RetryingLifecycleHelper):
             p.communicate(json.dumps(env).encode('utf-8'))
             return p.wait() == 0
         else:
-            raise ValueError(
-                'Lifecycle check: invalid envfrom {}'.format(self.envfrom)
-            )
+            raise ValueError(f'Lifecycle check: invalid envfrom {self.envfrom}')
 
     @staticmethod
     def from_config(container, config):
@@ -141,8 +140,7 @@ class RemoteScriptExecutor(RetryingLifecycleHelper):
         self.container_env = env
 
     def __repr__(self):
-        return 'RemoteScriptExector({}, {} attempts)'.format(self.command,
-                                                             self.attempts)
+        return f'RemoteScriptExector({self.command}, {self.attempts} attempts)'
 
     def _test(self, container):
         """ Execute a script in side of remote container """
@@ -169,7 +167,7 @@ class Sleep(BaseLifecycleHelper):
         self.wait = wait
 
     def __repr__(self):
-        return 'Sleep({}s)'.format(self.wait)
+        return f'Sleep({self.wait}s)'
 
     def test(self, container=None):
         while self.wait > 0:
@@ -199,13 +197,13 @@ class HttpRequestLifecycle(BaseLifecycleHelper):
                 self.match_regex = re.compile(match_regex, re.DOTALL)
             except Exception:
                 raise exceptions.InvalidLifecycleCheckConfigurationException(
-                    'Bad regex for {}: {}'.format(self.__class__.__name__,
-                                                  match_regex)
-                    )
+                    f'Bad regex for {self.__class__.__name__}: {match_regex}'
+                )
+
 
         self.path = path
         if not self.path.startswith('/'):
-            self.path = '/'+self.path
+            self.path = f'/{self.path}'
         self.scheme = scheme
         self.method = method.lower()
         self.max_wait = int(max_wait)
@@ -217,8 +215,7 @@ class HttpRequestLifecycle(BaseLifecycleHelper):
         start = time.time()
         end_by = start+self.max_wait
 
-        url = '{}://{}:{}{}'.format(self.scheme, self.host, self.port,
-                                    self.path)
+        url = f'{self.scheme}://{self.host}:{self.port}{self.path}'
         while time.time() < end_by:
             try:
                 response = requests.request(self.method, url,
@@ -234,11 +231,10 @@ class HttpRequestLifecycle(BaseLifecycleHelper):
     def _test_response(self, response):
         if self.match_regex:
             if getattr(response, 'text', None) and \
-               self.match_regex.search(response.text):
+                   self.match_regex.search(response.text):
                 return True
-        else:
-            if response.status_code == requests.codes.ok:
-                return True
+        elif response.status_code == requests.codes.ok:
+            return True
         return False
 
     @staticmethod
@@ -255,14 +251,17 @@ class HttpRequestLifecycle(BaseLifecycleHelper):
                 port = int(config['port'])
             except Exception:
                 raise exceptions.InvalidLifecycleCheckConfigurationException(
-                    'Port {} is not defined by {}!'.format(
-                        config['port'], container.name))
+                    f"Port {config['port']} is not defined by {container.name}!"
+                )
+
 
         if port is None:
             parts = container.ports[config['port']]['external'][1].split('/')
             if parts[1] == 'udp':
                 raise exceptions.InvalidLifecycleCheckConfigurationException(
-                    'Port {} is not TCP!'.format(config['port']))
+                    f"Port {config['port']} is not TCP!"
+                )
+
             port = int(parts[0])
 
         opts = {}

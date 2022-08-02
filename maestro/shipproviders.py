@@ -42,9 +42,11 @@ class StaticShipsProvider(ShipsProvider):
         ShipsProvider.__init__(self, config)
 
         # Create container ships.
-        self._ships = dict(
-            (k, entities.Ship(
-                k, ip=v['ip'], endpoint=v.get('endpoint'),
+        self._ships = {
+            k: entities.Ship(
+                k,
+                ip=v['ip'],
+                endpoint=v.get('endpoint'),
                 docker_port=self._from_ship_or_defaults(v, 'docker_port'),
                 socket_path=self._from_ship_or_defaults(v, 'socket_path'),
                 ssh_tunnel=self._from_ship_or_defaults(v, 'ssh_tunnel'),
@@ -55,8 +57,10 @@ class StaticShipsProvider(ShipsProvider):
                 tls_key=self._from_ship_or_defaults(v, 'tls_key'),
                 tls_verify=self._from_ship_or_defaults(v, 'tls_verify'),
                 tls_ca_cert=self._from_ship_or_defaults(v, 'tls_ca_cert'),
-                ssl_version=self._from_ship_or_defaults(v, 'ssl_version')))
-            for k, v in self._config['ships'].items())
+                ssl_version=self._from_ship_or_defaults(v, 'ssl_version'),
+            )
+            for k, v in self._config['ships'].items()
+        }
 
     def ships(self):
         return self._ships
@@ -81,7 +85,7 @@ class ShipsProviderFactory:
 
         if provider not in ShipsProviderFactory.PROVIDERS:
             raise exceptions.EnvironmentConfigurationException(
-                'Invalid ship provider {}! Available providers: {}'
-                .format(provider,
-                        ', '.join(ShipsProviderFactory.PROVIDERS.keys())))
+                f"Invalid ship provider {provider}! Available providers: {', '.join(ShipsProviderFactory.PROVIDERS.keys())}"
+            )
+
         return ShipsProviderFactory.PROVIDERS[provider](config)

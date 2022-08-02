@@ -79,12 +79,7 @@ class Task:
             if not self._wait_for_status(cond, retries=1):
                 return False
 
-        # Check results
-        for check in checks.get():
-            if not check:
-                return False
-
-        return True
+        return all(checks.get())
 
     def run(self, auditor=None):
         if auditor:
@@ -120,13 +115,11 @@ class StatusTask(Task):
             if self.container.is_running():
                 self.o.commit(green(CONTAINER_STATUS_FMT.format(
                     self.container.shortid_and_tag)))
-                self.o.commit(green('running{}'.format(
-                    time_ago(self.container.started_at))))
+                self.o.commit(green(f'running{time_ago(self.container.started_at)}'))
             else:
                 self.o.commit(CONTAINER_STATUS_FMT.format(
                     self.container.shortid_and_tag))
-                self.o.commit(red('down{}'.format(
-                    time_ago(self.container.finished_at))))
+                self.o.commit(red(f'down{time_ago(self.container.finished_at)}'))
         except Exception:
             self.o.commit(CONTAINER_STATUS_FMT.format('-'))
             self.o.commit(red(TASK_RESULT_FMT.format('host down')))
@@ -156,8 +149,7 @@ class StartTask(Task):
             # could be improved.
             result = self._create_and_start_container()
             if result is None:
-                self.o.commit(blue('up{}'.format(
-                    time_ago(self.container.started_at))))
+                self.o.commit(blue(f'up{time_ago(self.container.started_at)}'))
             elif result:
                 self.o.commit(green('started'))
             else:
@@ -168,9 +160,8 @@ class StartTask(Task):
 
         if result is False:
             log = self.container.ship.backend.logs(self.container.id)
-            error = (
-                'Halting start sequence because {} failed to start!\n{}'
-            ).format(self.container, log)
+            error = f'Halting start sequence because {self.container} failed to start!\n{log}'
+
             raise exceptions.ContainerOrchestrationException(
                 self.container, error.strip())
 
@@ -203,7 +194,7 @@ class StartTask(Task):
             # Check if the image is available, or if we need to pull it down.
             image = self.container.get_image_details()
             if self._refresh or \
-                not list(filter(
+                    not list(filter(
                     lambda i: self.container.image in (i['RepoTags'] or []),
                     self.container.ship.backend.images(image['repository']))):
                 PullTask(self.o, self.container, self._registries,
@@ -211,12 +202,11 @@ class StartTask(Task):
 
             # Create and start the container.
             ports = self.container.ports \
-                and list(map(lambda p: tuple(p['exposed'].split('/')),
+                    and list(map(lambda p: tuple(p['exposed'].split('/')),
                              self.container.ports.values())) \
-                or None
+                    or None
 
-            self.o.pending('creating container from {}...'.format(
-                self.container.short_image))
+            self.o.pending(f'creating container from {self.container.short_image}...')
             self.container.ship.backend.create_container(
                 image=self.container.image,
                 name=self.container.name,
@@ -247,8 +237,7 @@ class StartTask(Task):
                 ports[port['exposed']].append(
                     (port['external'][0], port['external'][1].split('/')[0]))
 
-        self.o.pending('starting container {}...'
-                       .format(self.container.id[:7]))
+        self.o.pending(f'starting container {self.container.id[:7]}...')
         self.container.ship.backend.start(
             self.container.id)
 
@@ -304,7 +293,7 @@ class StopTask(Task):
         except Exception as e:
             # Stop failures are non-fatal, usualy it's just the container
             # taking more time to stop than the timeout allows.
-            self.o.commit(red('failed: {}'.format(e)))
+            self.o.commit(red(f'failed: {e}'))
 
 
 class KillTask(Task):
@@ -341,7 +330,7 @@ class KillTask(Task):
         except Exception as e:
             # Stop failures are non-fatal, usually it's just the container
             # taking more time to stop than the timeout allows.
-            self.o.commit(red('failed: {}'.format(e)))
+            self.o.commit(red(f'failed: {e}'))
 
 
 class RestartTask(Task):
@@ -365,28 +354,25 @@ class RestartTask(Task):
             PullTask(self.o, self.container, self._registries,
                      standalone=False).run()
 
-        if self._only_if_changed:
-            if self.container.is_running():
-                self.o.pending('checking image...')
-                images = self.container.ship.get_image_ids()
-                if images.get(self.container.image) == \
+        if self._only_if_changed and self.container.is_running():
+            self.o.pending('checking image...')
+            images = self.container.ship.get_image_ids()
+            if images.get(self.container.image) == \
                         self.container.status()['Image']:
-                    self.o.commit(CONTAINER_STATUS_FMT.format(
-                        self.container.shortid_and_tag))
-                    self.o.commit(blue('up to date'))
-                    return
+                self.o.commit(CONTAINER_STATUS_FMT.format(
+                    self.container.shortid_and_tag))
+                self.o.commit(blue('up to date'))
+                return
 
         if self._step_delay:
-            self.o.pending('waiting {}s before restart...'
-                           .format(self._step_delay))
+            self.o.pending(f'waiting {self._step_delay}s before restart...')
             time.sleep(self._step_delay)
 
         StopTask(self.o, self.container).run()
 
         self.o.reset()
         if self._stop_start_delay:
-            self.o.pending('waiting {}s before starting...'
-                           .format(self._stop_start_delay))
+            self.o.pending(f'waiting {self._stop_start_delay}s before starting...')
             time.sleep(self._stop_start_delay)
 
         StartTask(self.o, self.container, self._registries,
@@ -414,20 +400,22 @@ class LoginTask(Task):
 
         if not registry.get('username'):
             registry_auth_config = auth.load_config().\
-                get(urlparse.urlparse(registry['registry']).netloc)
+                    get(urlparse.urlparse(registry['registry']).netloc)
             registry['username'] = registry_auth_config.get('username') \
-                if registry_auth_config else None
+                    if registry_auth_config else None
 
         if not registry.get('username'):
             # Still no username found; bail out.
             return
 
         retry_spec = LoginTask.get_registry_retry_spec(registry)
-        args = dict((k, registry[k]) for k in
-                    ['username', 'password', 'email', 'registry'])
+        args = {
+            k: registry[k] for k in ['username', 'password', 'email', 'registry']
+        }
+
 
         self.o.reset()
-        self.o.pending('logging in to {}...'.format(registry['registry']))
+        self.o.pending(f"logging in to {registry['registry']}...")
         attempts = retry_spec['attempts']
         while attempts > 0:
             try:
@@ -436,15 +424,14 @@ class LoginTask(Task):
             except APIError as e:
                 status = e.response.status_code
                 if status in retry_spec['when']:
-                    self.o.pending(red('... got {}; retrying in 1s'
-                                       .format(status)))
+                    self.o.pending(red(f'... got {status}; retrying in 1s'))
                     attempts -= 1
                     time.sleep(1)
                     continue
                 raise exceptions.ContainerOrchestrationException(
                     self.container,
-                    'Login to {} as {} failed: {}'
-                    .format(registry['registry'], registry['username'], e))
+                    f"Login to {registry['registry']} as {registry['username']} failed: {e}",
+                )
 
     @staticmethod
     def registry_for_container(container, registries={}):
@@ -458,7 +445,7 @@ class LoginTask(Task):
             # matching registry by registry FQDN.
             for name, info in registries.items():
                 fqdn = urlparse.urlparse(info['registry']).netloc
-                if registry == fqdn or registry == fqdn.split(':')[0]:
+                if registry in [fqdn, fqdn.split(':')[0]]:
                     registry = name
                     break
 
@@ -498,8 +485,7 @@ class PullTask(Task):
         # First, attempt to login if we can/need to.
         LoginTask(self.o, self.container, self._registries).run()
 
-        self.o.pending('pulling image {}...'
-                       .format(self.container.short_image))
+        self.o.pending(f'pulling image {self.container.short_image}...')
 
         registry = LoginTask.registry_for_container(self.container,
                                                     self._registries)
@@ -521,8 +507,7 @@ class PullTask(Task):
             except APIError as e:
                 status = e.response.status_code
                 if status in retry_spec['when']:
-                    self.o.pending(red('... got {}; retrying in 1s'
-                                       .format(status)))
+                    self.o.pending(red(f'... got {status}; retrying in 1s'))
                     attempts -= 1
                     time.sleep(1)
                     continue
@@ -541,9 +526,9 @@ class PullTask(Task):
         if 'error' in last:
             raise exceptions.ContainerOrchestrationException(
                 self.container,
-                'Pull of image {} failed: {}'.format(
-                    self.container.image,
-                    last['errorDetail']['message'].encode('utf-8')))
+                f"Pull of image {self.container.image} failed: {last['errorDetail']['message'].encode('utf-8')}",
+            )
+
 
         try:
             self._progress[last['id']] = (
@@ -583,8 +568,7 @@ class CleanTask(Task):
             self.o.commit(red(TASK_RESULT_FMT.format('skipped')))
             return
 
-        self.o.pending('removing container {}...'.format(
-            self.container.shortid))
+        self.o.pending(f'removing container {self.container.shortid}...')
         self.container.ship.backend.remove_container(self.container.id, v=True)
 
         if self._standalone:

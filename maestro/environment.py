@@ -23,14 +23,14 @@ def build(base_path, *args):
     for arg in filter(None, args):
         if isinstance(arg, six.string_types):
             envfile = os.path.join(base_path, arg)
-            env.update(parse_env_file(envfile))
+            env |= parse_env_file(envfile)
         elif type(arg) == list:
             env.update(build(base_path, *arg))
         elif type(arg) == dict:
             env.update(arg)
             continue
         else:
-            raise ValueError('unhandled env type {}'.format(type(arg)))
+            raise ValueError(f'unhandled env type {type(arg)}')
 
     for k, v in env.items():
         if type(v) == list:

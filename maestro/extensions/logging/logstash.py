@@ -44,9 +44,7 @@ def run_service(cmd, logtype='log', logbase=None, logtarget=None):
     if type(cmd) == str:
         cmd = cmd.split(' ')
 
-    log = logbase \
-        and os.path.join(logbase, '{}.log'.format(get_container_name())) \
-        or None
+    log = logbase and os.path.join(logbase, f'{get_container_name()}.log') or None
     if logbase and not os.path.exists(logbase):
         os.makedirs(logbase)
 
@@ -72,12 +70,22 @@ def run_service(cmd, logtype='log', logbase=None, logtarget=None):
             last = tee
 
         pipestash = subprocess.Popen(
-            ['pipestash', '-t', logtype,
-             '-r', 'redis://{}/0'.format(random.choice(redis)),
-             '-R', 'logstash',
-             '-f', 'service={}'.format(get_service_name()),
-             '-S', get_container_name()],
-            stdin=last.stdout)
+            [
+                'pipestash',
+                '-t',
+                logtype,
+                '-r',
+                f'redis://{random.choice(redis)}/0',
+                '-R',
+                'logstash',
+                '-f',
+                f'service={get_service_name()}',
+                '-S',
+                get_container_name(),
+            ],
+            stdin=last.stdout,
+        )
+
         last.stdout.close()
         last = pipestash
 

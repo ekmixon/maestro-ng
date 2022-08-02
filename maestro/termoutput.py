@@ -20,7 +20,7 @@ def supports_color(out=sys.stdout):
 
 
 def color(n, s, bold=True):
-    return '\033[{};{}m{}\033[;0m'.format(n, '1' if bold else '', s)
+    return f"\033[{n};{'1' if bold else ''}m{s}\033[;0m"
 
 
 def green(s):
@@ -86,13 +86,13 @@ def time_ago(t, base=None):
     if duration < 0:
         return ''
     if duration < 60:
-        return ' for {}s'.format(duration)
+        return f' for {duration}s'
     if duration < 3600:
-        return ' for {}m{}s'.format(minutes, seconds)
+        return f' for {minutes}m{seconds}s'
     if duration < 86400:
-        return ' for {}h{}m'.format(hours, minutes)
+        return f' for {hours}h{minutes}m'
     # Biggest step is by day.
-    return ' for {}d{}h{}m'.format(days, hours, minutes)
+    return f' for {days}d{hours}h{minutes}m'
 
 
 class OutputManager:
@@ -126,7 +126,7 @@ class OutputManager:
     def end(self):
         if not supports_color(self._out):
             return
-        self._print('\033[{}B'.format(self._lines))
+        self._print(f'\033[{self._lines}B')
 
     def _print(self, s, pos=None):
         if not supports_color(self._out):
@@ -137,10 +137,10 @@ class OutputManager:
 
         with self._lock:
             if pos:
-                self._out.write('\033[{}B'.format(pos))
-            self._out.write('\r{}\033[K\r'.format(s))
+                self._out.write(f'\033[{pos}B')
+            self._out.write(f'\r{s}\033[K\r')
             if pos:
-                self._out.write('\033[{}A'.format(pos))
+                self._out.write(f'\033[{pos}A')
             self._out.flush()
 
 
@@ -160,7 +160,7 @@ class OutputFormatter:
         """Output, and commit, a string at the end of the currently committed
         line."""
         if self._committed and s:
-            self._committed = '{} {}'.format(self._committed, s)
+            self._committed = f'{self._committed} {s}'
         elif not self._committed and s:
             self._committed = s
         self._printer(self._committed)
@@ -169,7 +169,7 @@ class OutputFormatter:
         """Output a temporary message at the end of the currently committed
         line."""
         if self._committed and s:
-            self._printer('{} {}'.format(self._committed, s))
+            self._printer(f'{self._committed} {s}')
         if not self._committed and s:
             self._printer(s)
 

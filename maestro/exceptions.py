@@ -54,7 +54,7 @@ class ContainerOrchestrationException(OrchestrationException):
         super(OrchestrationException, self).__init__(message, args)
 
     def __str__(self):
-        return '{}: {}'.format(self.container.name, self.message)
+        return f'{self.container.name}: {self.message}'
 
 
 class InvalidPortSpecException(EnvironmentConfigurationException):

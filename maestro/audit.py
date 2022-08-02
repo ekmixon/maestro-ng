@@ -42,9 +42,11 @@ class BaseAuditor(object):
         return self._level
 
     def _fits_compact(self, what):
-        return isinstance(what, entities.Entity) or \
-            ((type(what) == list or type(what) == tuple) and
-             len(what) < BaseAuditor.COMPACT_SIZE_LIMIT)
+        return (
+            isinstance(what, entities.Entity)
+            or type(what) in [list, tuple]
+            and len(what) < BaseAuditor.COMPACT_SIZE_LIMIT
+        )
 
     def _format_what(self, what):
         if isinstance(what, entities.Entity):
@@ -54,8 +56,7 @@ class BaseAuditor(object):
     def _format_what_compact(self, what):
         if self._fits_compact(what):
             return self._format_what(what)
-        return '{} container{}'.format(
-            len(what), 's' if len(what) > 1 else '')
+        return f"{len(what)} container{'s' if len(what) > 1 else ''}"
 
     def _format_who(self, who=None):
         return who or getpass.getuser()
@@ -63,20 +64,20 @@ class BaseAuditor(object):
     def _format_action_verb(self, action, end='ing'):
         if action == 'stop':
             action = 'stopp'
-        return '{}{}'.format(action, end)
+        return f'{action}{end}'
 
     def _format_action(self, what, action, who=None):
         action = self._format_action_verb(action)
         who = self._format_who(who)
-        return '{} is {} {}.'.format(who, action, what)
+        return f'{who} is {action} {what}.'
 
     def _format_success(self, what, action):
-        return '{} of {} succeeded.'.format(action.title(), what)
+        return f'{action.title()} of {what} succeeded.'
 
     def _format_error(self, what, action, message=None):
-        s = 'Failed to {} {}!'.format(action, what)
+        s = f'Failed to {action} {what}!'
         if message:
-            s += ' (message: {})'.format(message)
+            s += f' (message: {message})'
         return s
 
     def _should_audit(self, level):
@@ -120,7 +121,7 @@ class HipChatAuditor(BaseAuditor):
             raise exceptions.InvalidAuditorConfigurationException(
                 'Missing HipChat API token!')
 
-        self._name = name if name else maestro_name
+        self._name = name or maestro_name
         self._room = room
 
         import hipchat
@@ -184,7 +185,7 @@ class SlackAuditor(BaseAuditor):
             raise exceptions.InvalidAuditorConfigurationException(
                 'Missing Slack bot token!')
 
-        self._name = name if name else maestro_name
+        self._name = name or maestro_name
         self._channel = channel
         self._icon = icon
 
@@ -295,12 +296,14 @@ class WebHookAuditor(BaseAuditor):
         self._payload = payload
         self._headers = {'Content-Type': 'application/json; charset=utf-8'}
         if headers:
-            self._headers.update(headers)
+            self._headers |= headers
 
         self._method = method.upper()
         if self._method not in ['GET', 'POST']:
             raise exceptions.InvalidAuditorConfigurationException(
-                'Invalid HTTP method {}!'.format(method))
+                f'Invalid HTTP method {method}!'
+            )
+
         self._timeout = timeout
 
     def _prepare_payload(self, what, action, who, message):
@@ -315,7 +318,7 @@ class WebHookAuditor(BaseAuditor):
                     if v2:
                         d[k] = v2
                 return d
-            if type(on) == list or type(on) == tuple:
+            if type(on) in [list, tuple]:
                 return list(filter(None, map(lambda e: r(fn, e), on)))
             return fn(on)
 
@@ -476,7 +479,9 @@ class AuditorFactory:
         for auditor in cfg:
             if auditor['type'] not in AuditorFactory.AUDITORS:
                 raise exceptions.InvalidAuditorConfigurationException(
-                    'Unknown auditor type {}'.format(auditor['type']))
+                    f"Unknown auditor type {auditor['type']}"
+                )
+
             impl = (AuditorFactory.AUDITORS[auditor['type']]
                     .from_config(auditor))
             if auditor.get('ignore_errors') is True:

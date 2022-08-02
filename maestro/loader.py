@@ -18,16 +18,23 @@ class MaestroYamlConstructor(SafeConstructor):
     def construct_mapping(self, node, deep=False):
         if not isinstance(node, yaml.nodes.MappingNode):
             raise ConstructorError(
-                None, None,
-                "expected a mapping node, but found %s" % node.id,
-                node.start_mark)
+                None,
+                None,
+                f"expected a mapping node, but found {node.id}",
+                node.start_mark,
+            )
+
         keys = set([])
         for key_node, value_node in node.value:
             key = self.construct_object(key_node, deep=deep)
             if key in keys:
                 raise ConstructorError(
-                    "while constructing a mapping", node.start_mark,
-                    "found duplicate key (%s)" % key, key_node.start_mark)
+                    "while constructing a mapping",
+                    node.start_mark,
+                    f"found duplicate key ({key})",
+                    key_node.start_mark,
+                )
+
             keys.add(key)
         return SafeConstructor.construct_mapping(self, node, deep)
 
@@ -86,11 +93,14 @@ def load(filename, filters=None, functions=None):
             template = env.get_template(os.path.basename(filename))
     except jinja2.exceptions.TemplateNotFound:
         raise exceptions.MaestroException(
-            'Environment description file {} not found!'.format(filename))
+            f'Environment description file {filename} not found!'
+        )
+
     except Exception as e:
         raise exceptions.MaestroException(
-            'Error reading environment description file {}: {}!'
-            .format(filename, e))
+            f'Error reading environment description file {filename}: {e}!'
+        )
+
 
     config = yaml.load(template.render(env=os.environ),
                        Loader=MaestroYamlLoader)

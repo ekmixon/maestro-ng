@@ -55,8 +55,7 @@ class BaseOrchestrationPlay:
         self._auditor = auditor
         self._play = self.__class__.__name__.lower()
 
-        self._dependencies = dict(
-            (c.name, self._gather_dependencies(c)) for c in containers)
+        self._dependencies = {c.name: self._gather_dependencies(c) for c in containers}
 
         self._om = termoutput.OutputManager(len(containers))
         self._threads = set([])
@@ -107,7 +106,7 @@ class BaseOrchestrationPlay:
                 self._cv.notifyAll()
                 self._cv.release()
 
-        t = threading.Thread(target=act, args=(tuple([task])))
+        t = threading.Thread(target=act, args=(task, ))
         t.daemon = True
         t.start()
         self._threads.add(t)
@@ -146,10 +145,9 @@ class BaseOrchestrationPlay:
                 self._auditor.error(action=self._play, what=self._containers,
                                     message=str(self._error[1]))
             exceptions.raise_with_tb(self._error)
-        else:
-            if self._auditor:
-                self._auditor.success(level=audit.INFO, action=self._play,
-                                      what=self._containers)
+        elif self._auditor:
+            self._auditor.success(level=audit.INFO, action=self._play,
+                                  what=self._containers)
 
     def _run(self):
         raise NotImplementedError
@@ -165,11 +163,11 @@ class BaseOrchestrationPlay:
         of the service the given container is a member of. This set is limited
         to the containers involved in the orchestration play."""
         containers = set(self._containers)
-        result = set([container])
+        result = {container}
 
         for container in result:
             deps = container.service.requires if self._forward \
-                else container.service.needed_for
+                    else container.service.needed_for
             deps = functools.reduce(lambda x, y: x.union(y),
                                     [s.containers for s in deps],
                                     set([]))
@@ -215,11 +213,9 @@ class FullStatus(BaseOrchestrationPlay):
                 if status and status['State']['Running']:
                     o.commit(green(tasks.CONTAINER_STATUS_FMT.format(
                         container.shortid_and_tag)))
-                    o.commit(green('running{}'.format(
-                        time_ago(container.started_at))))
+                    o.commit(green(f'running{time_ago(container.started_at)}'))
                 else:
-                    o.commit(red('down{}'.format(
-                        time_ago(container.finished_at))))
+                    o.commit(red(f'down{time_ago(container.finished_at)}'))
 
                 o.commit('\n')
 
@@ -229,7 +225,7 @@ class FullStatus(BaseOrchestrationPlay):
                     image_sha = status['Image']
                     if ':' in image_sha:
                         image_sha = image_sha.split(':', 1)[1]
-                    image_info.commit(' ({})'.format(image_sha[:7]))
+                    image_info.commit(f' ({image_sha[:7]})')
                 image_info.commit('\n')
 
                 for name, port in container.ports.items():

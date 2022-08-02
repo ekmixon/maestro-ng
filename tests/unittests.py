@@ -73,17 +73,19 @@ class ContainerTest(unittest.TestCase):
     DOCKER_VERSION = '1.18'
     PORTS = {'server': 4848}
 
-    def _cntr(service_name=SERVICE, service_env=None, image=IMAGE,
-              ship_name=SHIP, ship_ip=SHIP_IP,
-              container_name=CONTAINER, config=None, schema=SCHEMA,
-              api_version=DOCKER_VERSION, ports=PORTS):
-        service = entities.Service(name=service_name, image=image,
-                                   maestro_schema=schema,
-                                   env=service_env, ports=ports)
+    def _cntr(self, service_env=None, image=IMAGE, ship_name=SHIP, ship_ip=SHIP_IP, container_name=CONTAINER, config=None, schema=SCHEMA, api_version=DOCKER_VERSION, ports=PORTS):
+        service = entities.Service(
+            name=self,
+            image=image,
+            maestro_schema=schema,
+            env=service_env,
+            ports=ports,
+        )
+
         ship = entities.Ship(ship_name, ship_ip, api_version=api_version)
         cfg = {'ship': ship.name}
         if config:
-            cfg.update(config)
+            cfg |= config
         return entities.Container({ship_name: ship}, container_name,
                                   service, config=cfg,
                                   maestro_schema=schema)
@@ -304,13 +306,14 @@ class ContainerTest(unittest.TestCase):
         self.assertEqual(container.workdir, '/tmp')
 
     def test_volume_conflict_container(self):
-        six.assertRaisesRegex(self,
-                exceptions.InvalidVolumeConfigurationException,
-                'Conflict in {} between bind-mounted volume '
-                'and container-only volume on /in1'
-                .format(ContainerTest.CONTAINER),
-                lambda: self._cntr(config={'volumes': {'/out': '/in1'},
-                                           'container_volumes': ['/in1']}))
+        six.assertRaisesRegex(
+            self,
+            exceptions.InvalidVolumeConfigurationException,
+            f'Conflict in {ContainerTest.CONTAINER} between bind-mounted volume and container-only volume on /in1',
+            lambda: self._cntr(
+                config={'volumes': {'/out': '/in1'}, 'container_volumes': ['/in1']}
+            ),
+        )
 
     def test_simple_port_mapping_no_protocol_defaults_to_tcp(self):
         container = self._cntr(config={'ports': {'http': '80'}})
@@ -397,8 +400,7 @@ class ContainerTest(unittest.TestCase):
 class BaseConfigFileUsingTest(unittest.TestCase):
 
     def _get_config(self, name):
-        path = os.path.join(os.path.dirname(__file__),
-                            'yaml/{}.yaml'.format(name))
+        path = os.path.join(os.path.dirname(__file__), f'yaml/{name}.yaml')
         return loader.load(path)
 
 
@@ -431,12 +433,9 @@ class ConductorTest(BaseConfigFileUsingTest):
         c = maestro.Conductor(config)
         instance1 = c.containers['instance-1']
         instance2 = c.containers['instance-2']
-        self.assertEqual(instance1.get_volumes(),
-                         set(['/in1', '/in2']))
-        self.assertEqual(instance2.get_volumes(),
-                         set(['/in3']))
-        self.assertEqual(instance2.volumes_from,
-                         set([instance1.name]))
+        self.assertEqual(instance1.get_volumes(), {'/in1', '/in2'})
+        self.assertEqual(instance2.get_volumes(), {'/in3'})
+        self.assertEqual(instance2.volumes_from, {instance1.name})
 
     def test_volume_conflict_volumes_from(self):
         config = self._get_config('test_volume_conflict_volumes_from')
@@ -459,10 +458,8 @@ class ConductorTest(BaseConfigFileUsingTest):
         self.assertEqual(len(c.services), 2)
         self.assertEqual(len(c.containers), 2)
         self.assertEqual(len(list(c.services['myservice'].containers)), 1)
-        self.assertEqual(c.services['myservice'].dependencies,
-                         set([c.services['mydata']]))
-        self.assertEqual(c.services['myservice'].requires,
-                         set([c.services['mydata']]))
+        self.assertEqual(c.services['myservice'].dependencies, {c.services['mydata']})
+        self.assertEqual(c.services['myservice'].requires, {c.services['mydata']})
 
     def test_env_name(self):
         config = self._get_config('test_envname')
@@ -574,7 +571,7 @@ class ConductorTest(BaseConfigFileUsingTest):
         c = maestro.Conductor(config)
         containers = c._to_containers(['webapp', 'webapp1'], True, '*-b', 'ship*2')
         self.assertEqual(len(containers), 2)
-        container_names = set([c.name for c in containers])
+        container_names = {c.name for c in containers}
         self.assertEqual(container_names, {'webapp-b', 'webapp1-b'})
 
 

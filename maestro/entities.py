@@ -98,18 +98,20 @@ class Ship(Entity):
             (self.DEFAULT_DOCKER_TLS_PORT if tls
              else self.DEFAULT_DOCKER_PORT))
         self._socket_path = os.path.realpath(socket_path) \
-            if socket_path else None
+                if socket_path else None
         self._tunnel = None
 
         if ssh_tunnel:
             if 'user' not in ssh_tunnel:
                 raise exceptions.EnvironmentConfigurationException(
-                    'Missing SSH user for ship {} tunnel configuration'.format(
-                        self.name))
+                    f'Missing SSH user for ship {self.name} tunnel configuration'
+                )
+
             if 'key' not in ssh_tunnel:
                 raise exceptions.EnvironmentConfigurationException(
-                    'Missing SSH key for ship {} tunnel configuration'.format(
-                        self.name))
+                    f'Missing SSH key for ship {self.name} tunnel configuration'
+                )
+
 
             self._tunnel = bgtunnel.open(
                 ssh_address=self._endpoint,
@@ -166,9 +168,7 @@ class Ship(Entity):
 
     def address(self, use_ip=False):
         name = self.ip if use_ip else self.name
-        if self._tunnel:
-            return '{} (ssh:{})'.format(name, self._tunnel.bind_port)
-        return name
+        return f'{name} (ssh:{self._tunnel.bind_port})' if self._tunnel else name
 
     def get_image_ids(self):
         """Returns a dictionary of tagged images available on the Docker daemon
@@ -184,10 +184,9 @@ class Ship(Entity):
 
     def __repr__(self):
         if self._tunnel:
-            return '{}@{} via ssh://{}@{}:{}->{}'.format(
-                self.name, self._ip, self._tunnel.ssh_user,
-                self._endpoint, self._tunnel.bind_port, self._docker_port)
-        return '{}@{} via {}'.format(self.name, self._ip, self._backend_url)
+            return f'{self.name}@{self._ip} via ssh://{self._tunnel.ssh_user}@{self._endpoint}:{self._tunnel.bind_port}->{self._docker_port}'
+
+        return f'{self.name}@{self._ip} via {self._backend_url}'
 
 
 class Service(Entity):
@@ -240,8 +239,9 @@ class Service(Entity):
             })
         except ValueError:
             raise exceptions.EnvironmentConfigurationException(
-                    'Invalid environment configuration for service {}'
-                    .format(name))
+                f'Invalid environment configuration for service {name}'
+            )
+
 
         self._lifecycle = lifecycle or {}
         self._limits = limits or {}
@@ -336,9 +336,8 @@ class Service(Entity):
         links = {}
         for c in self._containers.values():
             for name, value in c.get_link_variables(add_internal).items():
-                links['{}_{}'.format(basename, name)] = value
-        links['{}_INSTANCES'.format(basename)] = \
-            ','.join(sorted(self._containers.keys()))
+                links[f'{basename}_{name}'] = value
+        links[f'{basename}_INSTANCES'] = ','.join(sorted(self._containers.keys()))
         return links
 
 

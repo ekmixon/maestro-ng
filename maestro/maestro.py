@@ -46,7 +46,7 @@ class Conductor:
         for kind, service in self._config.get('services', {}).items():
             # Duplicate services can't happen in the YAML structure.
             self.services[kind] = \
-                entities.Service(
+                    entities.Service(
                     name=kind,
                     image=service['image'],
                     omit=service.get('omit', False),
@@ -60,16 +60,13 @@ class Conductor:
                     ports=service.get('ports', {}))
 
             for name, instance in service['instances'].items():
-                # Duplicate instances can't happen within the same service in
-                # the YAML structure, but may happen across services, so we
-                # need to check for that.
-                existing = self.containers.get(name)
-                if existing:
+                if existing := self.containers.get(name):
                     raise exceptions.EnvironmentConfigurationException(
-                            'Service instance {} is already defined in {}'
-                            .format(name, existing.service.name))
+                        f'Service instance {name} is already defined in {existing.service.name}'
+                    )
+
                 self.containers[name] = \
-                    entities.Container(
+                        entities.Container(
                         ships=self.ships,
                         name=name,
                         service=self.services[kind],
@@ -82,15 +79,17 @@ class Conductor:
             for dependency in service.get('requires', []):
                 if dependency not in self.services:
                     raise exceptions.EnvironmentConfigurationException(
-                        'Service dependency {} defined on {} does not exist'
-                        .format(dependency, kind))
+                        f'Service dependency {dependency} defined on {kind} does not exist'
+                    )
+
                 self.services[kind].add_dependency(self.services[dependency])
                 self.services[dependency].add_dependent(self.services[kind])
             for wants_info in service.get('wants_info', []):
                 if wants_info not in self.services:
                     raise exceptions.EnvironmentConfigurationException(
-                        'Service dependency {} defined on {} does not exist'
-                        .format(dependency, kind))
+                        f'Service dependency {dependency} defined on {kind} does not exist'
+                    )
+
                 self.services[kind].add_wants_info(self.services[wants_info])
 
         # Provide link environment variables to each container of each service
@@ -103,7 +102,7 @@ class Conductor:
                 container.env.update(service_link_vars)
                 # Containers also get links from the service's dependencies.
                 for dependency in service.requires.union(service.wants_info):
-                    dep_link_vars = dep_link_vars_cache.get(dependency, None)
+                    dep_link_vars = dep_link_vars_cache.get(dependency)
                     if dep_link_vars is None:
                         dep_link_vars = dependency.get_link_variables()
                         dep_link_vars_cache[dependency] = dep_link_vars
@@ -116,24 +115,24 @@ class Conductor:
             for volumes_from in container.volumes_from:
                 if volumes_from not in self.containers:
                     raise exceptions.InvalidVolumeConfigurationException(
-                        'Unknown container {} to get volumes from for {}!'
-                        .format(volumes_from, container.name))
+                        f'Unknown container {volumes_from} to get volumes from for {container.name}!'
+                    )
+
 
                 other = self.containers[volumes_from]
                 if other.ship != container.ship:
                     raise exceptions.InvalidVolumeConfigurationException(
-                        '{} and {} must be on the same host for '
-                        'volumes_from declaration in {}!'
-                        .format(other.name, container.name,
-                                container.name))
+                        f'{other.name} and {container.name} must be on the same host for volumes_from declaration in {container.name}!'
+                    )
 
-                conflicts = container.get_volumes().intersection(
-                    other.get_volumes())
-                if conflicts:
+
+                if conflicts := container.get_volumes().intersection(
+                    other.get_volumes()
+                ):
                     raise exceptions.InvalidVolumeConfigurationException(
-                        'Volume conflicts between {} and {}: {}!'
-                        .format(container.name, other.name,
-                                ', '.join(conflicts)))
+                        f"Volume conflicts between {container.name} and {other.name}: {', '.join(conflicts)}!"
+                    )
+
 
                 # Add the dependency against the volumes_from's service.
                 container.service.add_dependency(other.service)
@@ -182,14 +181,15 @@ class Conductor:
         # resolved and an error should be raised.
         if wait and pending and len(wait) == len(pending):
             raise exceptions.DependencyException(
-                'Cannot resolve dependencies for containers {}!'.format(
-                    map(lambda x: x.name, wait)))
+                f'Cannot resolve dependencies for containers {map(lambda x: x.name, wait)}!'
+            )
+
 
         # As long as 'wait' has elements, keep recursing to resolve
         # dependencies. Otherwise, returned the ordered list, which should now
         # be final.
         return wait and self._order_dependencies(wait, ordered, forward) \
-            or ordered
+                or ordered
 
     def _gather_dependencies(self, containers, forward=True):
         """Transitively gather all containers from the dependencies or
@@ -558,14 +558,14 @@ class Conductor:
         o.pending('Inspecting container status...')
         status = container.status()
         if not status:
-            o.commit(termoutput.red('{} is not running!'.format(container)))
+            o.commit(termoutput.red(f'{container} is not running!'))
             return
 
-        stream = follow and status['State']['Running']
-        if stream:
+        if stream := follow and status['State']['Running']:
             o.pending(
-                'Now streaming logs for {}. New output will appear below.'
-                .format(container.name))
+                f'Now streaming logs for {container.name}. New output will appear below.'
+            )
+
 
             while True:
                 logs = container.ship.backend.attach(container.id, stream=True)
@@ -573,8 +573,7 @@ class Conductor:
                 for line in logs:
                     print(line.rstrip())
 
-                o.pending('{} has died, waiting for respawn...'
-                          .format(container.name))
+                o.pending(f'{container.name} has died, waiting for respawn...')
 
                 events = container.ship.backend.events(decode=True)
                 for e in events:
@@ -585,9 +584,7 @@ class Conductor:
                             container.id = e['id']
                             break
         else:
-            o.pending(
-                'Requesting logs for {}. This may take a while...'
-                .format(container.name))
+            o.pending(f'Requesting logs for {container.name}. This may take a while...')
             logs = container.ship.backend.logs(
                 container.id, tail=n).decode('utf-8').splitlines()
 

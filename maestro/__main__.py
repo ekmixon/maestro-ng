@@ -20,19 +20,30 @@ DEFAULT_MAESTRO_COMMAND = 'status'
 
 def create_parser():
     """Create the Maestro argument parser."""
-    parser = argparse.ArgumentParser(prog=name, description=(
-        '{} v{}, Docker container orchestrator.'.format(
-            name.title(), version)))
+    parser = argparse.ArgumentParser(
+        prog=name,
+        description=f'{name.title()} v{version}, Docker container orchestrator.',
+    )
+
     parser.add_argument(
-        '-f', '--file', metavar='FILE',
+        '-f',
+        '--file',
+        metavar='FILE',
         default=DEFAULT_MAESTRO_FILE,
-        help=('read environment description from FILE ' +
-              '(use - for stdin, defaults to ./{})'
-              .format(DEFAULT_MAESTRO_FILE)))
+        help=(
+            'read environment description from FILE '
+            + f'(use - for stdin, defaults to ./{DEFAULT_MAESTRO_FILE})'
+        ),
+    )
+
     parser.add_argument(
-        '-v', '--version', action='version',
-        version='{}-{}'.format(name, version),
-        help='show program version and exit')
+        '-v',
+        '--version',
+        action='version',
+        version=f'{name}-{version}',
+        help='show program version and exit',
+    )
+
 
     subparsers = parser.add_subparsers(
         dest='command',
@@ -202,8 +213,9 @@ def execute(options, config):
                 and not options.expand_all \
                 and not options.things:
             sys.stderr.write(
-                ('No services or containers specified for {}, '
-                 'and --all not set.\n').format(options.command))
+                f'No services or containers specified for {options.command}, and --all not set.\n'
+            )
+
             return 1
 
         if options.command != 'complete' and not options.things:
@@ -216,7 +228,7 @@ def execute(options, config):
     except KeyboardInterrupt:
         pass
     except exceptions.OrchestrationException as e:
-        sys.stderr.write('{}: {}\n'.format(termoutput.red('ERROR'), e))
+        sys.stderr.write(f"{termoutput.red('ERROR')}: {e}\n")
     except Exception:
         traceback.print_exc()
     return 1
